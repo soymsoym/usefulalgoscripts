@@ -1,0 +1,102 @@
+(async () => {
+  const BASE_URL = '';
+  const headers = {
+    "user-agent": "Mozilla/5.0..."
+  };
+
+  // Простая функция для чтения файла
+  const readFile = file => new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = () => res(reader.result);
+    reader.onerror = rej;
+    reader.readAsArrayBuffer(file);
+  });
+
+  // Выбор файла
+  const selectFile = () => new Promise(resolve => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.svg, image/svg+xml';
+    input.onchange = () => resolve(input.files[0]);
+    input.click();
+  });
+
+  // Получение studentId
+  const getStudentId = async () => {
+    const resp = await fetch(`${BASE_URL}/api/v1/profile/`, { credentials: 'include', headers });
+    const data = await resp.json();
+    return data.data.studentId;
+  };
+
+  // Создаем HMAC (здесь оставляем как есть или замените на вашу реализацию)
+  const createHmacHex = async (key, data) => {
+    const keyObj = await crypto.subtle.importKey('raw', new TextEncoder().encode(key), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+    const sig = await crypto.subtle.sign('HMAC', keyObj, data);
+    return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  // Основная функция для загрузки аватара
+  const uploadAvatar = async () => {
+    try {
+      const file = await selectFile();
+      if (!file) return alert('Файл не выбран');
+
+      const studentId = await getStudentId();
+      const svgData = await readFile(file);
+
+      const sign = await createHmacHex(studentId, svgData);
+
+      const formData = new FormData();
+      formData.append('svg', new Blob([svgData], { type: 'image/svg+xml' }), file.name);
+      formData.append('avatarId', '11');
+      formData.append('gender', 'male');
+      formData.append('skinTone', '0');
+      formData.append('sign', sign);
+
+      const resp = await fetch(`${BASE_URL}/api/v2/avatar/save`, {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: formData
+      });
+      const result = await resp.json();
+      alert('Аватар загружен успешно!');
+      console.log(result);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Вариант без HMAC, проще (менее безопасно)
+  window.uploadSimple = async () => {
+    const file = await selectFile();
+    if (!file) return alert('Файл не выбран');
+
+    const studentId = prompt("Введите ваш ID:");
+    const svgData = await readFile(file);
+    const hashBuffer = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(studentId + Array.from(new Uint8Array(await crypto.subtle.digest('SHA-1', svgData))).map(b => b.toString(16)).join('')));
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const sign = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    const formData = new FormData();
+    formData.append('svg', new Blob([svgData], { type: 'image/svg+xml' }), file.name);
+    formData.append('avatarId', '11');
+    formData.append('gender', 'male');
+    formData.append('skinTone', '0');
+    formData.append('sign', sign);
+
+    const resp = await fetch(`${BASE_URL}/api/v2/avatar/save`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: formData
+    });
+    const result = await resp.json();
+    alert('Загрузка завершена!');
+    console.log(result);
+  };
+    
+  window.uploadAvatar = uploadAvatar;
+})();
+
+uploadAvatar()
