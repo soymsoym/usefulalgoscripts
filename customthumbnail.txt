@@ -1,0 +1,89 @@
+(function() {
+    // Create and show popup for project ID
+    const projectId = prompt('Введите ID проекта:');
+    if (!projectId || projectId.trim() === '') {
+        alert('ID проекта обязателен!');
+        return;
+    }
+    
+    // Create file input and trigger file selection
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/png, image/jpeg, image/svg+xml, image/webp, .png, .jpg, .jpeg, .svg, .webp';
+    fileInput.style.display = 'none';
+    document.body.appendChild(fileInput);
+    
+    // Handle file selection
+    fileInput.addEventListener('change', function(e) {
+        if (this.files.length > 0) {
+            const file = this.files[0];
+            uploadFile(file, projectId.trim());
+        }
+        document.body.removeChild(fileInput);
+    });
+    
+    // Trigger file explorer
+    fileInput.click();
+    
+    function uploadFile(file, projectId) {
+        // Create status element
+        const statusDiv = document.createElement('div');
+        statusDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 9999;
+            font-family: Arial, sans-serif;
+            max-width: 300px;
+        `;
+        document.body.appendChild(statusDiv);
+        
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.style.background = type === 'error' ? '#ffebee' : 
+                                        type === 'success' ? '#e8f5e9' : '#f0f0f0';
+            statusDiv.style.color = type === 'error' ? '#c62828' : 
+                                    type === 'success' ? '#2e7d32' : '#333';
+        }
+        
+        // Show uploading status
+        showStatus('Загружаем...', '');
+        
+        // Create FormData object
+        const formData = new FormData();
+        formData.append('img', file, file.name);
+        formData.append('imgPreview', file, file.name);
+        
+        // Make the request
+        fetch(`/api/v1/projects/save-image-preview?projectId=${projectId}`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Ошибка`);
+            }
+            return response.text();
+        })
+        .then(data => {
+            showStatus(`Вы успешно загрузили обложку!!`, 'success');
+            setTimeout(() => {
+                document.body.removeChild(statusDiv);
+            }, 5000);
+        })
+        .catch(error => {
+            showStatus(`Ошибка загрузки: ${error.message}`, 'error');
+            console.error('Upload error:', error);
+            setTimeout(() => {
+                document.body.removeChild(statusDiv);
+            }, 5000);
+        });
+    }
+})();
