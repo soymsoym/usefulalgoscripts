@@ -1,0 +1,108 @@
+(async () => {
+    // Получаем ID проекта из текущего URL или запрашиваем у пользователя
+    const urlParts = window.location.pathname.split('/');
+    const projectId = urlParts[urlParts.indexOf('projects') + 1] || prompt('Введите ID проекта:');
+    
+    if (!projectId) {
+        console.log('ID проекта не указан');
+        return;
+    }
+
+    try {
+        console.log('Получаем информацию о проекте...');
+        
+        // Первый запрос для получения информации о проекте
+        const infoResponse = await fetch(`/api/v1/projects/info/${projectId}?expand=uploads%2Cvideo%2Cremix%2Ccontest`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/xml'
+            }
+        });
+        
+        if (!infoResponse.ok) {
+            throw new Error(`Ошибка получения информации о проекте: ${infoResponse.status}`);
+        }
+        
+        // Парсим XML ответ
+        const xmlText = await infoResponse.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+        
+        // Извлекаем URL видео
+        const videoUrlElement = xmlDoc.querySelector('video url');
+        if (!videoUrlElement) {
+            throw new Error('URL видео не найден в ответе');
+        }
+        
+        const jwplayerUrl = videoUrlElement.textContent;
+        console.log('Найден JWPlayer URL:', jwplayerUrl);
+        
+        // Второй запрос к JWPlayer API
+        console.log('Получаем информацию о видео с JWPlayer...');
+        const jwResponse = await fetch(jwplayerUrl, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!jwResponse.ok) {
+            throw new Error(`Ошибка получения данных с JWPlayer: ${jwResponse.status}`);
+        }
+        
+        const jwData = await jwResponse.json();
+        
+        // Ищем MP4 файл в источниках
+        let mp4Url = null;
+        if (jwData.playlist && jwData.playlist[0] && jwData.playlist[0].sources) {
+            // Ищем source с типом video/mp4
+            const mp4Source = jwData.playlist[0].sources.find(source => source.type === 'video/mp4');
+            if (mp4Source) {
+                mp4Url = mp4Source.file;
+            }
+        }
+        
+        if (!mp4Url) {
+            throw new Error('MP4 файл не найден в ответе JWPlayer');
+        }
+        
+        console.log('Найден MP4 URL:', mp4Url);
+        
+        // Получаем название видео для имени файла
+        const videoTitle = jwData.playlist[0].title || 'video';
+        const fileName = `${videoTitle}_${projectId}.mp4`.replace(/[^a-zа-я0-9]/gi, '_').toLowerCase();
+        
+        // Скачиваем видео
+        console.log('Начинаем скачивание видео...');
+        
+        const videoResponse = await fetch(mp4Url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'video/mp4'
+            }
+        });
+        
+        if (!videoResponse.ok) {
+            throw new Error(`Ошибка скачивания видео: ${videoResponse.status}`);
+        }
+        
+        const videoBlob = await videoResponse.blob();
+        const downloadUrl = window.URL.createObjectURL(videoBlob);
+        
+        // Создаем ссылку для скачивания
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Очищаем URL объект
+        window.URL.revokeObjectURL(downloadUrl);
+        
+        console.log(`Видео успешно скачано как: ${fileName}`);
+        
+    } catch (error) {
+        console.error('Произошла ошибка:', error.message);
+    }
+})();
