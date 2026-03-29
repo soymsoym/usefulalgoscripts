@@ -45,7 +45,7 @@
 
   try {
     // Получаем информацию о проекте
-    print('Получаем информацию о проекте...');
+    console.log('Получаем информацию о проекте...');
     const projectInfo = await rqstget(`/api/v1/projects/info/${projectId}`);
     if (!projectInfo || !projectInfo.data) {
       throw new Error('Не удалось найти проект или его информацию');
@@ -53,7 +53,7 @@
     const LId = projectInfo.data.meta.scratchId;
 
     // Отправляем POST-запрос, чтобы открыть проект
-    print('Открываем проект...');
+    console.log('Открываем проект...');
     const openResponse = await rqst(`/api/v1/scratch/open/${LId}`, 'POST', {});
     if (!openResponse || openResponse.status !== 'success') {
       throw new Error('Не удалось открыть проект');
