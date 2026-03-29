@@ -1,0 +1,69 @@
+(async () => {
+  const projectId = prompt("Введите ID проекта:");
+  if (!projectId || isNaN(parseInt(projectId))) {
+    alert("Не забудь написать правильный ID проекта!");
+    return;
+  }
+
+  async function rqstget(url) {
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      const json1 = await response.json();
+      return json1;
+    } catch (error) {
+      console.error(error.message);
+      return null;
+    }
+  }
+
+  async function rqst(url, methodd, jsonn) {
+    try {
+      const response = await fetch(url, {
+        method: methodd,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(jsonn)
+      });
+      if (!response.ok) {
+        throw new Error(`Response status: ${response.status}`);
+      }
+      const json1 = await response.json();
+      return json1;
+    } catch (error) {
+      console.error(error.message);
+      return null;
+    }
+  }
+
+  try {
+    // Получаем информацию о проекте
+    print('Получаем информацию о проекте...');
+    const projectInfo = await rqstget(`/api/v1/projects/info/${projectId}`);
+    if (!projectInfo || !projectInfo.data) {
+      throw new Error('Не удалось найти проект или его информацию');
+    }
+    const LId = projectInfo.data.meta.scratchId;
+
+    // Отправляем POST-запрос, чтобы открыть проект
+    print('Открываем проект...');
+    const openResponse = await rqst(`/api/v1/scratch/open/${LId}`, 'POST', {});
+    if (!openResponse || openResponse.status !== 'success') {
+      throw new Error('Не удалось открыть проект');
+    }
+    const projectRelationId = openResponse.data.project.projectRelationId;
+
+    // Открываем проект по relationId
+    window.location.href = `/laboratory?filter=projects&projectId=${projectRelationId}`;
+  } catch (error) {
+    console.error(error.message);
+    alert(`Ошибка: ${error.message}`);
+  }
+})();
